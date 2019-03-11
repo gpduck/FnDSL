@@ -88,7 +88,7 @@ function PSParam {
         $DefaultValue,
         $ParameterSetName,
         $ValidateSet,
-        [int]$Order,
+        [int]$Position,
         $HelpText = "ADD PARAMETER HELP TEXT"
     )
     $ParameterAttributeValues = @()
@@ -101,8 +101,8 @@ function PSParam {
     if($ValueFromPipelineByPropertyName) {
         $ParameterAttributeValues += 'ValueFromPipelineByPropertyName=$true'
     }
-    if($PSBoundParameters.ContainsKey("Order")) {
-        $ParameterAttributeValues += "Order=$Order"
+    if($PSBoundParameters.ContainsKey("Position")) {
+        $ParameterAttributeValues += "Position=$Position"
     }
     if($ParameterSetName) {
         $ParameterAttributeValues += "ParameterSetName='$ParameterSetName'"
@@ -116,7 +116,7 @@ function PSParam {
         $HelpParameters.Add(".PARAMETER $Name`r`n  $HelpText") > $null
     }
     if($DefaultValue) {
-        $Default = $DefaultValue
+        $Default = " = $DefaultValue"
     }
     if($ValidateSet) {
         $ValidateSet = $ValidateSet | ForEach-Object {
@@ -133,7 +133,7 @@ function PSParam {
         $Validate = "[ValidateSet($($ValidateSet -join ','))]`r`n        "
     }
     $Parameters.Add(@"
-$ParameterAttribute$Validate[$Type]`$$Name
+$ParameterAttribute$Validate[$Type]`$$Name$Default
 "@) > $null
 }
 

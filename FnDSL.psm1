@@ -14,6 +14,7 @@ function PSFunction {
 
         $DefaultParameterSetName
     )
+    $Script:__IndentLevel = 4
     $Parameters = New-object System.Collections.ArrayList
     $BeginBlock = New-object System.Collections.ArrayList
     $ProcessBlock = New-object System.Collections.ArrayList
@@ -141,19 +142,91 @@ function PSBegin {
     param(
         $Body
     )
-    $BeginBlock.Add( (&$Body) ) > $null
+    $MyIndent = " " * $Script:__IndentLevel
+    $Script:__IndentLevel += 4
+    $BeginBlock.Add( (&$Body) -join "`r`n" ) > $null
+    $Script:__IndentLevel -= 4
 }
 
 function PSProcess {
     param(
         $Body
     )
-    $ProcessBlock.Add( (&$Body) ) > $null
+    $MyIndent = " " * $Script:__IndentLevel
+    $Script:__IndentLevel += 4
+    $ProcessBlock.Add( (&$Body) -join "`r`n" ) > $null
+    $Script:__IndentLevel -= 4
 }
 
 function PSEnd {
     param(
         $Body
     )
-    $EndBlock.Add( (&$Body) ) > $null
+    $MyIndent = " " * $Script:__IndentLevel
+    $Script:__IndentLevel += 4
+    $EndBlock.Add( (&$Body) -join "`r`n" ) > $null
+    $Script:__IndentLevel -= 4
+}
+
+function PSIf {
+    param(
+        $Condition,
+        $Statement,
+        $Else,
+        [Switch]$LB
+    )
+    $MyIndent = " " * $Script:__IndentLevel
+    $Script:__IndentLevel += 4
+    if($Else) {
+        $ElsePart = @"
+ else {
+$MyIndent    $(&$Else)
+$MyIndent}
+"@
+    }
+
+@"
+${MyIndent}if($(&$Condition)) {
+$MyIndent    $(&$Statement)
+$MyIndent}$ElsePart$(if($LB) { "`r`n"})
+"@
+    $Script:__IndentLevel -= 4
+}
+
+function PS$ {
+    param(
+        $Name,
+        $Value
+    )
+    if($Value) {
+        "`$$Name = $Value"
+    } else {
+        "`$$Name"
+    }
+}
+
+function PSExec {
+    param()
+    $Args -Join " "
+}
+
+function PSForeach {
+    param(
+        $Condition,
+        $Statement,
+        [Switch]$LB
+    )
+    $MyIndent = " " * $Script:__IndentLevel
+    $Script:__IndentLevel += 4;
+    $StatementParts = (&$Statement) -JOin "`r`n$MyIndent    "
+@"
+${MyIndent}foreach($(&$Condition)) {
+$MyIndent    $StatementParts
+$MyIndent}$(if($LB) { "`r`n"})
+"@
+    $Script:__IndentLevel -= 4;
+}
+
+function PSLB {
+    "`r`n"
 }

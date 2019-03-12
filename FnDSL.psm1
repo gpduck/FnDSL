@@ -1,88 +1,148 @@
-function PSFunction {
+class FnDSL {
+    [Int32]$IndentLevel = 4
+    [Bool]$IndentEnabled = $true
+    [System.Collections.ArrayList]$Parameters = (New-Object System.Collections.ArrayList)
+    [System.Collections.ArrayList]$HelpParameters = (New-Object System.Collections.ArrayList)
+    [string]$BeginBlock
+    [string]$ProcessBlock
+    [String]$EndBlock
+    [string]GetIndent() {
+        if($This.IndentEnabled) {
+            return " " * $This.IndentLevel
+        } else {
+            return ""
+        }
+    }
+    [string]GetBegin() {
+        return $This.GetBodyBlock("Begin")
+    }
+    [string]GetProcess() {
+        return $This.GetBodyBlock("Process")
+    }
+    [string]GetEnd() {
+        return $This.GetBodyBlock("End")
+    }
+    [string]GetBodyBlock($Name) {
+        $BlockName = "${Name}Block"
+        if($This."$BlockName") {
+            $MyIndent = $This.GetIndent()
+return @"
+${MyIndent}$Name {
+${MyIndent}    $($This."$Blockname")
+${MyIndent}}
+"@
+        } else {
+            return ""
+        }
+    }
+    [string]GetHelpParameters() {
+        if($This.HelpParameters.Count -gt 0) {
+            return ($This.HelpParameters | ForEach-Object {
+                ".PARAMETER $($_.Name)`n$($_.Description)"
+            }) -Join "`n`n"
+        } else {
+            return ""
+        }
+    }
+    [string]GetParamBlock() {
+        $MyIndent = $This.GetIndent()
+        if($This.Parameters.Count -gt 0) {
+            return "${MyIndent}param(`n$($This.Parameters -Join ",`n`n")`n${MyIndent})"
+        } else {
+            return "${MyIndent}param()"
+        }
+    }
+    [void]IncreaseIndent() {
+        $This.IndentLevel += 4
+    }
+    [void]DecreaseIndent() {
+        $This.IndentLevel -= 4
+    }
+}
+
+class HelpParameter {
+    [String]$Name
+    [String]$Description
+}
+
+function _Function {
     param(
         $Name,
 
-        [System.Management.Automation.ScriptBlock]$Body,
+        [System.Management.Automation.ScriptBlock]$Body = {},
 
-        [switch]$CmdletBinding = $true,
+        [Switch]$CmdletBinding = $true,
 
         [switch]$SupportsShouldProcess,
 
+        [ValidateSet("None","Low","Medium","High")]
         $ConfirmImpact,
 
-        $Description = "AUTO GENERATED FUNCTION",
+        $DefaultParameterSetName,
 
-        $DefaultParameterSetName
+        [Switch]$ExternalHelp,
+
+        $Description = "AUTO GENERATED FUNCTION"
     )
-    $Script:__IndentLevel = 4
-    $Parameters = New-object System.Collections.ArrayList
-    $BeginBlock = New-object System.Collections.ArrayList
-    $ProcessBlock = New-object System.Collections.ArrayList
-    $EndBlock = New-Object System.Collections.ArrayList
-    $HelpParameters = New-Object System.Collections.ArrayList
+    $FnDSL = New-Object FnDSL
+    $Script:__FnDSL = $FnDsl
+    $MyIndent = $FnDsl.GetIndent()
+
+    &$Body
 
     $CmdletBindingValues = @()
     if($SupportsShouldProcess) {
-        $CmdletBindingValues += 'SupportsShouldProcess=$true'
+        $CmdletBindingValues += 'SupportsShouldProcess=$True'
     }
     if($DefaultParameterSetName) {
         $CmdletBindingValues += "DefaultParameterSetname='$DefaultParameterSetName'"
     }
+    if($ConfirmImpact) {
+        $CmdletBindingValues += "ConfirmImpact='$ConfirmImpact'"
+    }
     if($CmdletBinding -or $CmdletBindingValues.Count -gt 0) {
-        $CmdletBindingAttribute = "[CmdletBinding($($CmdletBindingValues -join ','))]"
+        $CmdletBindingAttribute = "${MyIndent}[CmdletBinding($($CmdletBindingValues -join ','))]"
     }
-
-    &$Body
-
-    if($BeginBlock.Count -gt 0) {
-        $Begin = @"
-    begin {
-        $BeginBlock
-    }
-"@
-    }
-
-    if($ProcessBlock.Count -gt 0) {
-        $Process = @"
-    process {
-        $ProcessBlock
-    }
-"@
-    }
-
-    if($EndBlock.Count -gt 0) {
-        $End = @"
-    end {
-        $EndBlock
-    }
-"@
-    }
-
-
-@"
+    If(!$ExternalHelp) {
+        $Help = @"
 <#
 .DESCRIPTION
-  $Description
+$Description`n
+$($FnDSL.GetHelpParameters())
+#>`n
+"@
+    } else {
+        $Help = ""
+    }
 
-$($HelpParameters -join "`r`n`r`n")
-#>
-function $Name {
-    $CmdletBindingAttribute
-    param(
-        $($Parameters -join ",`r`n`r`n        ")
-    )
-$Begin
-$Process
-$End
+    $Parts = @()
+    if($CmdletBindingAttribute) {
+        $Parts += $CmdletBindingAttribute
+    }
+    $Parts += $FnDsl.GetParamBlock()
+
+    if($FnDsl.BeginBlock) {
+        $Parts += $FnDsl.GetBegin()
+    }
+    if($FnDsl.ProcessBlock) {
+        $Parts += $FnDsl.GetProcess()
+    }
+    if($FnDsl.EndBlock) {
+        $Parts += $FnDsl.GetEnd()
+    }
+
+@"
+${Help}function $Name {
+$($Parts -join "`n")
 }
 "@
 }
 
-function PSParam {
+function _Parameter {
     param(
         [Parameter(Mandatory=$true)]
         $Name,
-        $Type = "Object",
+        $Type,
         [switch]$Mandatory,
         [switch]$ValueFromPipeline,
         [switch]$ValueFromPipelineByPropertyName,
@@ -92,6 +152,9 @@ function PSParam {
         [int]$Position,
         $HelpText = "ADD PARAMETER HELP TEXT"
     )
+    $FnDsl = $Script:__FnDsl
+    $FnDsl.IncreaseIndent()
+    $MyIndent = $FnDsl.GetIndent()
     $ParameterAttributeValues = @()
     if($Mandatory) {
         $ParameterAttributeValues += 'Mandatory=$true'
@@ -109,12 +172,15 @@ function PSParam {
         $ParameterAttributeValues += "ParameterSetName='$ParameterSetName'"
     }
     if($ParameterAttributeValues.Count -gt 0) {
-        $ParameterAttribute = "[Parameter($($ParameterAttributeValues -join ','))]`r`n        "
+        $ParameterAttribute = "$MyIndent[Parameter($($ParameterAttributeValues -join ','))]`n"
     } else {
         $ParameterAttribute = ""
     }
     if($HelpText) {
-        $HelpParameters.Add(".PARAMETER $Name`r`n  $HelpText") > $null
+        $FnDsl.HelpParameters.Add( (New-Object HelpParameter -Property @{
+            Name = $Name
+            Description = $HelpText
+        })) > $Null
     }
     if($DefaultValue) {
         $Default = " = $DefaultValue"
@@ -131,52 +197,63 @@ function PSParam {
                 }
             }
         }
-        $Validate = "[ValidateSet($($ValidateSet -join ','))]`r`n        "
+        $Validate = "$MyIndent[ValidateSet($($ValidateSet -join ','))]`n"
     }
-    $Parameters.Add(@"
-$ParameterAttribute$Validate[$Type]`$$Name$Default
-"@) > $null
+    If($Type) {
+        $Type = "${MyIndent}[$Type]"
+    } else {
+        $Type = "$MyIndent"
+    }
+    $FnDsl.Parameters.Add(@"
+${ParameterAttribute}${Validate}${Type}`$$Name$Default
+"@) > $Null
+    $FnDsl.DecreaseIndent()
 }
 
-function PSBegin {
+function _Begin {
     param(
         $Body
     )
-    $MyIndent = " " * $Script:__IndentLevel
-    $Script:__IndentLevel += 4
-    $BeginBlock.Add( (&$Body) -join "`r`n" ) > $null
-    $Script:__IndentLevel -= 4
+    BlockImplementation -Name Begin -Body $Body
 }
 
-function PSProcess {
+function _Process {
     param(
         $Body
     )
-    $MyIndent = " " * $Script:__IndentLevel
-    $Script:__IndentLevel += 4
-    $ProcessBlock.Add( (&$Body) -join "`r`n" ) > $null
-    $Script:__IndentLevel -= 4
+    BlockImplementation -Name Process -Body $Body
 }
 
-function PSEnd {
+function _End {
     param(
         $Body
     )
-    $MyIndent = " " * $Script:__IndentLevel
-    $Script:__IndentLevel += 4
-    $EndBlock.Add( (&$Body) -join "`r`n" ) > $null
-    $Script:__IndentLevel -= 4
+    BlockImplementation -Name End -Body $Body
 }
 
-function PSIf {
+function BlockImplementation {
+    param(
+        $Name,
+        $Body
+    )
+    $Fn = $Script:__FnDsl
+    $MyIndent = $Fn.Getindent()
+    $Fn.IncreaseIndent()
+    $BlockName = "${Name}Block"
+    $Fn."$BlockName" = (&$Body) -Join "`r"
+    $Fn.DecreaseIndent()
+}
+
+function _If {
     param(
         $Condition,
         $Statement,
         $Else,
         [Switch]$LB
     )
-    $MyIndent = " " * $Script:__IndentLevel
-    $Script:__IndentLevel += 4
+    $FnDsl = $Script:__FnDsl
+    $MyIndent = $FnDsl.GetIndent()
+    $FnDsl.IncreaseIndent()
     if($Else) {
         $ElsePart = @"
  else {
@@ -188,12 +265,12 @@ $MyIndent}
 @"
 ${MyIndent}if($(&$Condition)) {
 $MyIndent    $(&$Statement)
-$MyIndent}$ElsePart$(if($LB) { "`r`n"})
+$MyIndent}$ElsePart$(if($LB) { "`n"})
 "@
-    $Script:__IndentLevel -= 4
+    $FnDsl.DecreaseIndent()
 }
 
-function PS$ {
+function _$ {
     param(
         $Name,
         $Value
@@ -205,26 +282,31 @@ function PS$ {
     }
 }
 
-function PSExec {
+function _ {
     param()
     $Args -Join " "
 }
 
-function PSForeach {
+function _foreach {
     param(
+        [Parameter(Mandatory=$true)]
         $Condition,
+
+        [Parameter(Mandatory=$true)]
         $Statement,
+
         [Switch]$LB
     )
-    $MyIndent = " " * $Script:__IndentLevel
-    $Script:__IndentLevel += 4;
-    $StatementParts = (&$Statement) -JOin "`r`n$MyIndent    "
+    $FnDsl = $Script:__FnDsl
+    $MyIndent = $FnDsl.GetIndent()
+    $FnDsl.IncreaseIndent()
+    $StatementParts = (&$Statement) -Join "`n$MyIndent    "
 @"
 ${MyIndent}foreach($(&$Condition)) {
 $MyIndent    $StatementParts
-$MyIndent}$(if($LB) { "`r`n"})
+$MyIndent}$(if($LB) { "`n"})
 "@
-    $Script:__IndentLevel -= 4;
+    $FnDsl.DecreaseIndent()
 }
 
 function PSLB {

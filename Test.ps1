@@ -1,37 +1,37 @@
 ipmo .\FnDSL.psm1 -force
 
-PSFunction "Get-Things" {
-    PSParam "One" "Type"
-    PSParam "Two" "Type" -Mandatory
-    PSParam "Three" "Type" -Order 1
-    PSParam "Four" "Type" -ValueFromPipeline
-    PSParam "Five" -ValueFromPipelineByPropertyName
-    PSParam "Six" -Mandatory -Order 2 -ValueFromPipeline -ValueFromPipelineByPropertyName
-    PSParam "Seven" -ValidateSet 1,"two",3
+_Function "Get-Things" {
+    _Parameter "One" "Type"
+    _Parameter "Two" "Type" -Mandatory
+    _Parameter "Three" "Type" -Position 1
+    _Parameter "Four" "Type" -ValueFromPipeline
+    _Parameter "Five" -ValueFromPipelineByPropertyName
+    _Parameter "Six" -Mandatory -Position 2 -ValueFromPipeline -ValueFromPipelineByPropertyName
+    _Parameter "Seven" -ValidateSet 1,"two",3
 }
 
 
-PSFunction "New-Process" {
+_Function "New-Process" {
     $ParamMap = @{}
     [System.Diagnostics.Process].GetProperties() | %{
-        PSParam $_.Name -Mandatory
+        _Parameter $_.Name -Mandatory
         $ParamMap[$_.name] = Get-Random
     }
 
     $BooValue = "BOO"
 
-    PSBegin {
+    _Begin {
         "echo boo"
     }
 
-    PSProcess {
+    _Process {
 @"
 `$Map = @{
 $($ParamMap.Keys | ForEach-Object {"            $_ = $($ParamMap[$_])`r`n"})        }
 "@
     }
 
-    PSEnd {
+    _End {
         $BooValue
     }
 }

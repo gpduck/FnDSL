@@ -12,21 +12,21 @@ Describe "_If" {
     }
     It "Makes an if statement" {
         _If { '$True' } {
-            8
+            _ 8
         } | Should -Be "    if(`$True) {`n        8`n    }"
     }
 
     It "Makes an If..Else Statement" {
         _If { '$True' } {
-            8
+            _ 8
         } -Else {
-            9
+            _ 9
         }| Should -Be "    if(`$True) {`n        8`n    } else {`n        9`n    }"
     }
 
     It "Adds a line-break when -LB is specified" {
         _If { '$True' } {
-            8
+            _ 8
         } -LB | Should -Be "    if(`$True) {`n        8`n    }`n"
     }
 }

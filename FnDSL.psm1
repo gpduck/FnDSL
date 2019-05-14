@@ -58,6 +58,13 @@ ${MyIndent}}
     [void]DecreaseIndent() {
         $This.IndentLevel -= 4
     }
+    [string]InvokeWithoutIndent($SB) {
+        $IndentSetting = $This.IndentEnabled
+        $This.IndentEnabled = $false
+        $Result = &$SB
+        $This.IndentEnabled = $IndentSetting
+        return $Result
+    }
 }
 
 class HelpParameter {
@@ -254,17 +261,18 @@ function _If {
     $FnDsl = $Script:__FnDsl
     $MyIndent = $FnDsl.GetIndent()
     $FnDsl.IncreaseIndent()
+    $ConditionString = $FnDsl.InvokeWithoutIndent($Condition)
     if($Else) {
         $ElsePart = @"
  else {
-$MyIndent    $(&$Else)
+$(&$Else)
 $MyIndent}
 "@
     }
 
 @"
-${MyIndent}if($(&$Condition)) {
-$MyIndent    $(&$Statement)
+${MyIndent}if($ConditionString) {
+$(&$Statement)
 $MyIndent}$ElsePart$(if($LB) { "`n"})
 "@
     $FnDsl.DecreaseIndent()
@@ -284,7 +292,19 @@ function _$ {
 
 function _ {
     param()
-    $Args -Join " "
+    $FnDsl = $Script:__FnDsl
+    $MyIndent = $FnDsl.GetIndent()
+    $IndentSetting = $FnDsl.IndentEnabled
+    $FnDsl.IndentEnabled = $false
+    $Joined = ($Args | ForEach-Object {
+        if($_ -is [System.Management.Automation.ScriptBlock]) {
+            &$_
+        } else {
+            $_
+        }
+    }) -Join " "
+    "${MyIndent}$Joined"
+    $FnDsl.IndentEnabled = $IndentSetting
 }
 
 function _foreach {
@@ -311,4 +331,93 @@ $MyIndent}$(if($LB) { "`n"})
 
 function PSLB {
     "`r`n"
+}
+
+function _switch {
+    [CmdletBinding(DefaultParameterSetName="Exact")]
+    param(
+        [Parameter(Mandatory=$true,Position=0)]
+        $TestValue,
+
+        [Parameter(Mandatory=$true,Position=1)]
+        $Cases,
+
+        [Parameter(ParameterSetName="Regex")]
+        [switch]$Regex,
+
+        [Parameter(ParameterSetName="Wildcard")]
+        [switch]$Wildcard,
+
+        [Parameter(ParameterSetName="Exact")]
+        [switch]$Exact,
+
+        [switch]$CaseSensitive
+    )
+    $FnDsl = $Script:__FnDsl
+    $MyIndent = $FnDsl.GetIndent()
+    $FnDsl.IncreaseIndent()
+    $TestValueString = &$TestValue
+    $CaseStrings = &$Cases
+    $SwitchModifiers = @()
+    if($Regex) {
+        $SwitchModifiers += "-Regex"
+    }
+    if($Wildcard) {
+        $SwitchModifiers += "-Wildcard"
+    }
+    if($Exact) {
+        $SwitchModifiers += "-Exact"
+    }
+    if($CaseSensitive) {
+        $SwitchModifiers += "-CaseSensitive"
+    }
+    if($SwitchModifiers.Count -gt 0) {
+        $SwitchModifiersString = " $($SwitchModifiers -Join ' ') "
+    } else {
+        $SwitchModifiersString = ""
+    }
+@"
+${MyIndent}switch${SwitchModifiersString}($TestValueString) {
+$CaseStrings
+${MyIndent}}
+"@
+    $FnDsl.DecreaseIndent()
+}
+
+function _case {
+    param(
+        [Parameter(Mandatory=$true)]
+        $Condition,
+        $Statement
+    )
+    $FnDsl = $Script:__FnDsl
+    $MyIndent = $FnDsl.GetIndent()
+    $IndentSetting = $FnDsl.IndentEnabled
+    $FnDsl.IncreaseIndent()
+    $FnDsl.IndentEnabled = $false
+    $ConditionString = &$Condition
+    $FnDsl.IndentEnabled = $IndentSetting
+    $StatementString = &$Statement
+@"
+${MyIndent}$ConditionString {
+$StatementString
+${MyIndent}}
+"@
+    $FnDsl.DecreaseIndent()
+}
+
+function _Str {
+    param(
+        $Value,
+        [switch]$Single,
+        [switch]$Double
+    )
+    if($Double) {
+        $Quote = '"'
+    } else {
+        $Quote = "'"
+    }
+    $FnDsl = $Script:__FnDsl
+    $MyIndent = $FnDsl.GetIndent()
+    "${MyIndent}${Quote}$Value${Quote}"
 }

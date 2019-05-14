@@ -9,6 +9,7 @@ Describe "_" {
             $Script:__FnDsl = New-Object FnDSL
             $Script:__FnDSL
         }
+        $Fn.IndentLevel = 0
     }
 
     It "Joins the parameters with space" {
